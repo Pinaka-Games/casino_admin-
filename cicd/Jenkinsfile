@@ -1,0 +1,129 @@
+pipeline {
+    agent any
+
+    options {
+        skipDefaultCheckout(true)
+        skipStagesAfterUnstable()
+        disableRestartFromStage()
+    }
+
+    environment {
+        REPO_URL     = "https://github.com/abhinavhestabit/hestabit_Admin"
+        BRANCH       = "staging"
+        SERVICE      = "admin"
+        IMAGE_NAME   = "wulf_admin_staging"
+        AWS_REGISTRY = "496675774474.dkr.ecr.us-east-1.amazonaws.com"
+        AWS_REGION   = "us-east-1"
+        COMPOSE_DIR  = "${WORKSPACE}"
+    }
+
+    stages {
+
+        stage("Checkout Code") {
+            steps {
+                git branch: "${BRANCH}",
+                    url: "${REPO_URL}",
+                    credentialsId: "github_token"
+
+                script {
+                    env.COMMIT_HASH = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+
+                    env.FULL_IMAGE = "${AWS_REGISTRY}/${IMAGE_NAME}:${COMMIT_HASH}"
+
+                    echo "Commit: ${env.COMMIT_HASH}"
+                    echo "Image: ${env.FULL_IMAGE}"
+                }
+            }
+        }
+
+        // ✅ Create runtime .env file
+        stage("Create .env file") {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'WULF_ADMIN_NEXT_PUBLIC_USER_FRONTEND_URL', variable: 'NEXT_PUBLIC_USER_FRONTEND_URL'),
+                    string(credentialsId: 'WULF_ADMIN_NEXT_PUBLIC_API_URL', variable: 'NEXT_PUBLIC_API_URL'),
+                    string(credentialsId: 'WULF_ADMIN_NEXT_PUBLIC_SOCKET_URL', variable: 'NEXT_PUBLIC_SOCKET_URL')
+                ]) {
+                    sh '''
+                        echo "Creating .env file..."
+
+                        cat <<EOF > .env
+NEXT_PUBLIC_USER_FRONTEND_URL=$NEXT_PUBLIC_USER_FRONTEND_URL
+NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
+EOF
+
+                        echo ".env created successfully"
+                    '''
+                }
+            }
+        }
+
+        stage("Build Docker Image") {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'WULF_ADMIN_NEXT_PUBLIC_USER_FRONTEND_URL', variable: 'NEXT_PUBLIC_USER_FRONTEND_URL'),
+                    string(credentialsId: 'WULF_ADMIN_NEXT_PUBLIC_API_URL', variable: 'NEXT_PUBLIC_API_URL'),
+                    string(credentialsId: 'WULF_ADMIN_NEXT_PUBLIC_SOCKET_URL', variable: 'NEXT_PUBLIC_SOCKET_URL')
+                ]) {
+                    sh """
+                        docker build --no-cache \
+                        --build-arg "NEXT_PUBLIC_USER_FRONTEND_URL=${NEXT_PUBLIC_USER_FRONTEND_URL}" \
+                        --build-arg NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
+                        --build-arg NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL} \
+                        -t ${env.FULL_IMAGE} .
+                    """
+                }
+            }
+        }
+
+        stage("Login to AWS ECR") {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws_ecr_credentials'
+                ]]) {
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} \
+                        | docker login --username AWS --password-stdin ${AWS_REGISTRY}
+                    """
+                }
+            }
+        }
+
+        stage("Push Docker Image") {
+            steps {
+                sh "docker push ${env.FULL_IMAGE}"
+            }
+        }
+
+        stage("Deploy") {
+            steps {
+                sh """
+                    export ADMIN_IMAGE=${env.FULL_IMAGE}
+
+                    echo "Deploying image: \$ADMIN_IMAGE"
+
+                    cd ${COMPOSE_DIR}
+
+                    docker compose pull ${SERVICE}
+                    docker compose up -d ${SERVICE}
+
+                    docker ps
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Staging Deployment successful"
+        }
+        failure {
+            echo "❌ Staging Deployment failed"
+        }
+    }
+}

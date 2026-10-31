@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Notification Testing — QA Checklist</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1d222b; --border: #2a303b;
+    --text: #e6e9ef; --muted: #98a2b3; --accent: #b93deb;
+    --ok: #3fb950; --warn: #d29922; --crit: #f85149;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7f9; --panel: #fff; --panel-2: #f0f2f5; --border: #d9dee7;
+      --text: #14181f; --muted: #5b6572;
+    }
+  }
+  
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 96px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 21px; margin: 44px 0 4px; padding-top: 22px;
+    border-top: 1px solid var(--border);
+  }
+  .sub { color: var(--muted); margin: 0 0 14px; font-size: 15px; }
+
+  .bar {
+    position: sticky; top: 0; z-index: 20; background: var(--bg);
+    border-bottom: 1px solid var(--border); padding: 12px 0; margin: 14px 0 8px;
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  }
+  .progress { flex: 1; min-width: 160px; height: 9px; background: var(--panel-2); border-radius: 99px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .count { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; white-space: nowrap; }
+  button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 7px; padding: 8px 13px; font-size: 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+
+  .test {
+    background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 16px 18px; margin: 12px 0;
+  }
+  .test.done { opacity: .5; }
+  .thead { display: flex; gap: 11px; align-items: flex-start; }
+  .thead input { margin-top: 5px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; cursor: pointer; }
+  .tid { font-size: 13px; color: var(--muted); flex: none; margin-top: 3px; min-width: 26px; }
+  .ttitle { font-weight: 600; flex: 1; font-size: 16.5px; }
+  .tbody { padding-left: 29px; margin-top: 6px; }
+  .tbody ol { margin: 8px 0; padding-left: 22px; }
+  .tbody li { margin: 5px 0; }
+  .exp {
+    background: var(--panel-2); border-radius: 8px; padding: 11px 14px; margin-top: 12px;
+    border-left: 3px solid var(--ok);
+  }
+  .exp b { color: var(--ok); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 3px; }
+  .note {
+    background: var(--panel-2); border-radius: 8px; padding: 11px 14px; margin-top: 9px;
+    border-left: 3px solid var(--warn); font-size: 15px;
+  }
+  .note b { color: var(--warn); }
+  .callout {
+    background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 16px 18px; margin: 18px 0;
+  }
+  .callout ul { margin: 8px 0 0; padding-left: 22px; }
+  .callout li { margin: 6px 0; }
+  .where {
+    display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 5px; padding: 1px 8px; font-size: 14px; font-weight: 600;
+  }
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 14px; }
+  @media print { .bar { position: static; } .test { break-inside: avoid; } body { background:#fff; color:#000; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Notification Testing — QA Checklist</h1>
+  <p class="sub">Click through each test in order. Tick it off when it passes. Your progress is saved automatically in this browser.</p>
+</header>
+
+<div class="bar">
+  <div class="progress"><i id="pbar"></i></div>
+  <span class="count" id="pcount">0 / 0</span>
+  <button onclick="setAll(true)">Check all</button>
+  <button onclick="setAll(false)">Reset</button>
+  <button onclick="window.print()">Print</button>
+</div>
+
+<div class="callout">
+  <b>What you need before starting</b>
+  <ul>
+    <li><b>5 logins:</b> an Admin, an Agent, a Sub-agent belonging to that Agent, a second unrelated Agent, and a Player.</li>
+    <li><b>Two browsers</b> (or one normal + one incognito window) so you can be logged in as two people at once and watch notifications arrive live.</li>
+    <li>The Admin login needs the <b>Notifications</b> menu visible. If it's missing, ask an admin to tick <i>Notification Inbox</i> and <i>Send Notification</i> for your role under <b>Access Control</b>.</li>
+  </ul>
+</div>
+
+<div class="callout">
+  <b>Two golden rules</b>
+  <ul>
+    <li><b>Always refresh the page before reporting a problem.</b> If the notification appears after refreshing, that's a different bug than it never arriving at all — and telling us which one saves a lot of time.</li>
+    <li><b>Notifications appear in two places</b> — the <span class="where">bell icon</span> at the top of every page, and the full <span class="where">Notifications → Inbox</span> page. Check both.</li>
+  </ul>
+</div>
+
+<!-- ═══════════════ 1 ═══════════════ -->
+<h2>1. Sending notifications</h2>
+<p class="sub">Log in as <b>Admin</b>. Go to <b>Notifications → Send Notification</b>.</p>
+
+<div class="test" data-id="T1">
+  <div class="thead"><input type="checkbox"><span class="tid">1</span><span class="ttitle">Send a message to one agent</span></div>
+  <div class="tbody">
+    <ol>
+      <li>In your second browser, log in as the <b>Agent</b> and leave it open.</li>
+      <li>As Admin, choose <b>Send to one recipient</b>, then <b>Agent</b>.</li>
+      <li>Pick the agent from the dropdown. Type a title and message. Click <b>Send notification</b>.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      You see a green success message. In the agent's browser, a popup appears straight away, the bell number goes up by 1, and the message is inside the bell — without them refreshing anything.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T2">
+  <div class="thead"><input type="checkbox"><span class="tid">2</span><span class="ttitle">Send a message to one sub-agent</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Same as test 1, but choose <b>Sub-Agent</b> instead of Agent.</li>
+      <li>Log in as that sub-agent to check.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      The sub-agent receives it exactly like the agent did. (Sub-agents connect differently behind the scenes, so this really does need testing separately.)</div>
+  </div>
+</div>
+
+<div class="test" data-id="T3">
+  <div class="thead"><input type="checkbox"><span class="tid">3</span><span class="ttitle">An agent messages their own sub-agent</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Log out of Admin. Log in as the <b>Agent</b>.</li>
+      <li>Go to <b>Notifications → Send Notification</b> and send a message to their own sub-agent.</li>
+      <li>Check it arrived for the sub-agent.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Message arrives. In the sub-agent's inbox the sender is shown as <b>Your Agent</b> — not as Admin.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T4">
+  <div class="thead"><input type="checkbox"><span class="tid">4</span><span class="ttitle">Send an announcement to everyone</span></div>
+  <div class="tbody">
+    <ol>
+      <li>As Admin, choose <b>Broadcast to a group</b>.</li>
+      <li>Send one to <b>All Agents</b>. Note the number it says it sent to.</li>
+      <li>Repeat for <b>All Sub-Agents</b>, then for <b>Everyone</b>.</li>
+      <li>Log in as a couple of different agents and sub-agents to check.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Everyone in the chosen group gets the announcement, and each person gets it <b>only once</b>. The count shown matches roughly how many agents you have.</div>
+    <div class="note"><b>Watch for:</b> anyone receiving the same announcement twice. That's a bug.</div>
+  </div>
+</div>
+
+<!-- ═══════════════ 2 ═══════════════ -->
+<h2>2. The inbox page</h2>
+<p class="sub">Log in as <b>Admin</b>. Go to <b>Notifications → Inbox</b>.</p>
+
+<div class="test" data-id="T5">
+  <div class="thead"><input type="checkbox"><span class="tid">5</span><span class="ttitle">Filter by who sent it</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Look at the four boxes at the top: Unread, From Users, From Agents, System. Note the numbers.</li>
+      <li>Use the <b>role</b> dropdown and pick <b>Users</b>. Then <b>Agents</b>. Then <b>Sub-Agents</b>. Then <b>System</b>. Then back to <b>All Roles</b>.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Each choice shows only notifications from that kind of sender. The coloured label on each row matches what you filtered by.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T6">
+  <div class="thead"><input type="checkbox"><span class="tid">6</span><span class="ttitle">Filter by type, search, and unread</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Use the <b>type</b> dropdown — try <b>Deposit</b>, then <b>Redeem</b>, then back to All Types.</li>
+      <li>Type a word from one of your test messages into the search box.</li>
+      <li>Tick the <b>Unread only</b> box.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Each filter narrows the list correctly and jumps back to page 1. Search finds matches in the title, the message, and the sender's name.</div>
+    <div class="note"><b>Important:</b> <b>Unread only</b> must show <b>unread</b> messages. If it shows ones you've already read, report it straight away.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T7">
+  <div class="thead"><input type="checkbox"><span class="tid">7</span><span class="ttitle">Mark as read, mark all, and delete</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Open the inbox in <b>two browsers at once</b>, logged in as the same admin.</li>
+      <li>In the first browser, click <b>Mark read</b> on one row.</li>
+      <li>Then click <b>Mark all read</b> at the top.</li>
+      <li>Then click <b>Delete</b> on a row.</li>
+      <li>After each step, look at the <b>second</b> browser without touching it.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      The second browser updates by itself every time — the row fades, the bell number drops, "mark all" takes it to zero, and the deleted row disappears. The number never goes below zero.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T8">
+  <div class="thead"><input type="checkbox"><span class="tid">8</span><span class="ttitle">The bell dropdown</span></div>
+  <div class="tbody">
+    <ol>
+      <li>As an agent with plenty of notifications, click the <b>bell icon</b> in the top bar.</li>
+      <li>Scroll to the bottom and click <b>Load more</b>.</li>
+      <li>Mark one as read and delete another from inside the dropdown.</li>
+      <li>Close and reopen the bell.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Older messages are added below (no repeats, and it doesn't jump back to the top). Unread ones have a coloured stripe on the left. If there are none, it says "No notifications yet".</div>
+  </div>
+</div>
+
+<!-- ═══════════════ 3 ═══════════════ -->
+<h2>3. Notifications the system sends by itself</h2>
+<p class="sub">These appear in the Admin inbox automatically when things happen on the platform. Do the action, then check <b>Notifications → Inbox</b> as Admin.</p>
+
+<div class="test" data-id="T9">
+  <div class="thead"><input type="checkbox"><span class="tid">9</span><span class="ttitle">Deposits</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Create a <b>manual deposit</b> for a player → check the Admin inbox.</li>
+      <li>Approve that deposit → check the Admin inbox again.</li>
+      <li>Log in as that player and open their bell.</li>
+      <li>Make a <b>real card deposit</b> (test/sandbox card) → check the Admin inbox.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Admin sees "Manual deposit pending review", then "Manual deposit approved", then "Deposit completed" for the card payment. The player separately sees "Deposit Approved" in their own bell.</div>
+    <div class="note"><b>Please also try:</b> after a card deposit finishes, refresh the payment page or make the payment again from the same window. The admin should still only have <b>one</b> "Deposit completed" for that one payment — not two.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T10">
+  <div class="thead"><input type="checkbox"><span class="tid">10</span><span class="ttitle">Withdrawals (redeem requests)</span></div>
+  <div class="tbody">
+    <ol>
+      <li>As a <b>player</b>, request a withdrawal.</li>
+      <li>Check the Admin inbox.</li>
+      <li>As Admin, <b>reject</b> it and <b>type a reason</b> in the notes.</li>
+      <li>Log in as the player and check their bell and balance.</li>
+      <li>Do it again with a different request, but <b>approve</b> it this time.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Admin gets a notification when the request comes in and again when it's decided. The <b>player gets told it was declined, including the reason you typed</b>, and their money is back in their balance. On approval they're told it was approved.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T11">
+  <div class="thead"><input type="checkbox"><span class="tid">11</span><span class="ttitle">Agent payout requests</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Log in as an <b>Agent</b> with commission available and request a payout.</li>
+      <li>Check the <b>Admin</b> inbox.</li>
+      <li>Now log in as a <b>Sub-agent</b> and request a payout.</li>
+      <li>Check the <b>parent Agent's</b> inbox (not the Admin's).</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Agent requests go to Admins. Sub-agent requests go to their own parent agent — because that's who approves them.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T12">
+  <div class="thead"><input type="checkbox"><span class="tid">12</span><span class="ttitle">ID verification (KYC)</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Take a player through ID verification until it is <b>approved</b> → check the player's bell.</li>
+      <li>Take another player through until it is <b>rejected</b> → check their bell.</li>
+      <li>As Admin, use <b>Approve</b> and then <b>Revoke</b> on a player's KYC → check their bell each time.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      The player is told each time their verification status changes. Approval mentions they can now withdraw.</div>
+    <div class="note"><b>Watch for:</b> the same result arriving <b>twice</b>, or a player who was already approved suddenly being told they're "under review" for no reason. Both are bugs.</div>
+  </div>
+</div>
+
+<!-- ═══════════════ 4 ═══════════════ -->
+<h2>4. Agent and sub-agent notifications</h2>
+<p class="sub">Do the action as Admin, then log in as the agent (and sub-agent) to check they were told.</p>
+
+<div class="test" data-id="T13">
+  <div class="thead"><input type="checkbox"><span class="tid">13</span><span class="ttitle">Changing commission rates</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Pick an agent who <b>has sub-agents</b>.</li>
+      <li>As Admin, change that agent's commission rates.</li>
+      <li>Check the agent's inbox, then each sub-agent's inbox.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      The agent is told their rates changed, with the old and new numbers. Each sub-agent whose rate moved is told too, and it explains it happened because of their parent agent's change.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T14">
+  <div class="thead"><input type="checkbox"><span class="tid">14</span><span class="ttitle">Switching commission model (flat vs per-category)</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Switch an agent to <b>FLAT</b>, using a rate <i>lower</i> than one of their sub-agents currently has.</li>
+      <li>Check the agent's and that sub-agent's inbox.</li>
+      <li>Switch back to <b>CATEGORY</b> and check again.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Agent is told the model changed and what the flat rate is. Any sub-agent whose rate had to be reduced is told, with the old and new figures.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T15">
+  <div class="thead"><input type="checkbox"><span class="tid">15</span><span class="ttitle">Turning an agent on and off</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Deactivate an agent who has active sub-agents.</li>
+      <li>Check the agent's inbox and each sub-agent's inbox.</li>
+      <li>Reactivate them and check both again.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Agent and sub-agents are all told, both when switched off and when switched back on. The reactivation message correctly explains whether commission restarts for everyone or only for new players.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T16">
+  <div class="thead"><input type="checkbox"><span class="tid">16</span><span class="ttitle">Adding and removing sub-agents</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Create a <b>new sub-agent</b> under an agent.</li>
+      <li>Check the parent agent's inbox, and log in as the new sub-agent to check theirs.</li>
+      <li>Now <b>delete</b> that sub-agent.</li>
+      <li>Check the parent agent's inbox.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Parent agent is told a sub-agent was added, and the new sub-agent gets a welcome message. On deletion, the parent is told — and the message <b>names the person who was removed</b>. If it shows a blank space or a long random ID instead of a name, report it.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T17">
+  <div class="thead"><input type="checkbox"><span class="tid">17</span><span class="ttitle">Paying and declining commission payouts</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Approve and complete an agent's payout → check that agent's inbox.</li>
+      <li>Decline a different agent's payout, <b>with a reason</b> → check their inbox.</li>
+      <li>As a parent agent, decline one of your <b>sub-agent's</b> payouts → check the sub-agent's inbox.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Completed payout: they're told the money has been paid. Declined: they're told it was declined, with your reason, and that the money is back in their balance. When declined by their parent agent, the sender shows as the agent — not Admin.</div>
+  </div>
+</div>
+
+<!-- ═══════════════ 5 ═══════════════ -->
+<h2>5. Player notifications</h2>
+<p class="sub">Check these in the <b>player app</b> bell, not the admin portal.</p>
+
+<div class="test" data-id="T18">
+  <div class="thead"><input type="checkbox"><span class="tid">18</span><span class="ttitle">Jackpot wins</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Trigger a <b>game jackpot</b> win for a player.</li>
+      <li>Check their bell and their wallet balance.</li>
+      <li>Now trigger a <b>tier jackpot</b> win (Grand / Major / Minor / Mini).</li>
+      <li>Check their bell and balance again.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      The winner is told they won, which jackpot it was, and how much — and the amount matches what landed in their wallet. <b>Both</b> kinds of jackpot must notify; they are two separate things.</div>
+    <div class="note">This never worked before — players were paid and told nothing. It's the most important test in this section.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T19">
+  <div class="thead"><input type="checkbox"><span class="tid">19</span><span class="ttitle">Failed withdrawal payment</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Cause a payout to fail (for example, enter invalid payout details).</li>
+      <li>Check the player's bell.</li>
+      <li>Check the Admin inbox.</li>
+      <li>Read the player's message carefully and compare it to what actually happened to their money.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Player is told the payout failed and that support has been notified. Admin is told too, including which provider failed and why.</div>
+    <div class="note"><b>Read the wording:</b> the message must <b>not</b> promise the player an automatic refund, because no automatic refund happens here. If it says the money has been returned, report it.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T20">
+  <div class="thead"><input type="checkbox"><span class="tid">20</span><span class="ttitle">Announcements reach offline players</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Have player A <b>logged in</b>, and player B <b>logged out completely</b>.</li>
+      <li>As Admin, create a new <b>active</b> message template / announcement.</li>
+      <li>Player A should see it pop up straight away.</li>
+      <li>Now log player B in and open their bell.</li>
+      <li>Go back and <b>edit and save</b> the same announcement (change a word).</li>
+      <li>Switch it <b>off</b>, then <b>on</b> again.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Player B <b>sees the announcement in their bell</b> even though they were offline when it was sent — this used to be lost forever. Editing an announcement that's already live does <b>not</b> resend it to everyone. Switching it off and back on <b>does</b> send it.</div>
+  </div>
+</div>
+
+<!-- ═══════════════ 6 ═══════════════ -->
+<h2>6. Connection and access</h2>
+
+<div class="test" data-id="T21">
+  <div class="thead"><input type="checkbox"><span class="tid">21</span><span class="ttitle">Losing and regaining internet</span></div>
+  <div class="tbody">
+    <p>Easy to skip, but this was a real problem — please do it.</p>
+    <ol>
+      <li>Log in as Admin and stay on any page.</li>
+      <li><b>Turn off your wifi</b> (or unplug the network). Wait about 30 seconds.</li>
+      <li>While still offline, use another computer or phone to make a player submit a withdrawal request.</li>
+      <li><b>Turn wifi back on.</b> Wait a few seconds.</li>
+      <li><b>Do not refresh the page.</b> Just watch the bell.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      The bell number updates on its own shortly after the internet comes back. Previously it stayed stuck, so new withdrawal requests sat there unnoticed.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T22">
+  <div class="thead"><input type="checkbox"><span class="tid">22</span><span class="ttitle">Notifications wait for you while logged out</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Log an agent out completely.</li>
+      <li>As Admin, send them 2–3 notifications.</li>
+      <li>Log the agent back in.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      All of them are waiting in the bell with the right unread count. Nothing is lost by being logged out.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T23">
+  <div class="thead"><input type="checkbox"><span class="tid">23</span><span class="ttitle">Menu hidden without permission</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Ask an admin to create a role with the <b>Notification Inbox</b> and <b>Send Notification</b> permissions <b>unticked</b>, and give it to a test staff login.</li>
+      <li>Log in as that person.</li>
+      <li>Then have the permissions ticked on, and log in again.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Without the permissions, the <b>Notifications</b> menu is not visible at all. With them, it appears.</div>
+  </div>
+</div>
+
+<div class="test" data-id="T24">
+  <div class="thead"><input type="checkbox"><span class="tid">24</span><span class="ttitle">Agents can only message their own sub-agents</span></div>
+  <div class="tbody">
+    <ol>
+      <li>Log in as <b>Agent A</b> and open the Send Notification page.</li>
+      <li>Open the recipient dropdown and look at the full list.</li>
+    </ol>
+    <div class="exp"><b>Should happen</b>
+      Agent A only sees their <b>own</b> sub-agents. They must <b>not</b> be able to pick another agent, or a sub-agent belonging to a different agent.</div>
+    <div class="note">If you can see or select someone outside your own team here, report it as a <b>security issue</b>, not a normal bug.</div>
+  </div>
+</div>
+
+<!-- ═══════════════ 7 ═══════════════ -->
+<h2>7. Not bugs — please don't raise these</h2>
+<div class="callout">
+  <ul>
+    <li>There's <b>no way to turn notifications off</b> or choose which ones you get. Not built yet.</li>
+    <li>Notifications are <b>in-app only</b> — no emails, no text messages, no phone push notifications for these events.</li>
+    <li>A small withdrawal and a very large one <b>look the same</b> in the inbox. No urgent/high-priority styling yet.</li>
+    <li>Notifications you've already read are <b>automatically deleted after 90 days</b>. Unread ones are kept.</li>
+    <li>Some things still don't notify anyone yet: failed deposits, password changes, new-device logins, weekly commission statements, and commission change requests. All planned, not missing by accident.</li>
+    <li>Messages typed by an admin by hand are always shown exactly as typed — they aren't translated.</li>
+  </ul>
+</div>
+
+<!-- ═══════════════ 8 ═══════════════ -->
+<h2>8. Ask a developer to check these</h2>
+<p class="sub">These can't be tested by clicking around. Pass them to a developer.</p>
+<div class="callout">
+  <ul>
+    <li><b>Staff with no permissions can't send to everyone</b> — a staff account with an empty role must be blocked from the send and broadcast functions, not just have the menu hidden.</li>
+    <li><b>One agent can't read or delete another agent's notifications</b> by using someone else's notification ID.</li>
+    <li><b>Spanish translations</b> for agent notifications work and fall back to English safely.</li>
+    <li><b>Sorting and filtering options can't be abused</b> to reach data or cause errors.</li>
+    <li><b>Sending an announcement to thousands of agents</b> completes quickly and doesn't time out.</li>
+  </ul>
+</div>
+
+<!-- ═══════════════ 9 ═══════════════ -->
+<h2>When something fails</h2>
+<div class="callout">
+  Please include:
+  <ul>
+    <li>The <b>test number</b> from this page.</li>
+    <li>Which login you used (Admin / Agent / Sub-agent / Player).</li>
+    <li>What you expected, and what actually happened.</li>
+    <li><b>Whether it appeared after you refreshed the page</b> — this one detail matters a lot.</li>
+    <li>Roughly what time it happened, so the logs can be checked.</li>
+    <li>A screenshot if you can.</li>
+  </ul>
+</div>
+
+<footer>
+  Keep this page updated whenever notifications change.
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var KEY = 'notif-qa-simple-v1';
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.test input[type=checkbox]'));
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { saved = {}; }
+
+  function idOf(box) { return box.closest('.test').getAttribute('data-id'); }
+
+  function paint() {
+    var done = 0;
+    boxes.forEach(function (b) {
+      var card = b.closest('.test');
+      if (b.checked) { card.classList.add('done'); done++; }
+      else { card.classList.remove('done'); }
+    });
+    var pct = boxes.length ? Math.round((done / boxes.length) * 100) : 0;
+    document.getElementById('pbar').style.width = pct + '%';
+    document.getElementById('pcount').textContent = done + ' / ' + boxes.length + ' done';
+  }
+
+  function persist() {
+    var out = {};
+    boxes.forEach(function (b) { if (b.checked) out[idOf(b)] = 1; });
+    try { localStorage.setItem(KEY, JSON.stringify(out)); } catch (e) {}
+  }
+
+  boxes.forEach(function (b) {
+    if (saved[idOf(b)]) b.checked = true;
+    b.addEventListener('change', function () { persist(); paint(); });
+  });
+
+  window.setAll = function (v) {
+    boxes.forEach(function (b) { b.checked = v; });
+    persist(); paint();
+  };
+
+  paint();
+})();
+</script>
+</body>
+</html>

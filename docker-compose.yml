@@ -1,0 +1,14 @@
+services:
+  admin:
+    image: ${ADMIN_IMAGE}
+    container_name: wulf_admin_staging
+    restart: unless-stopped
+    ports:
+      - "8020:3000"
+    #env_file:
+     # - .env
+# healthcheck:
+#       test: ["CMD-SHELL", "curl -fsS http://localhost/ -o /dev/null || exit 1"]
+#       interval: 30s
+#       timeout: 5s
+#       retries: 3     
